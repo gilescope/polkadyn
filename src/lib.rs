@@ -7,6 +7,12 @@ use parity_scale_codec::Compact;
 use parity_scale_codec::Decode;
 use types_that_should_be_defined_somewhere_else::Phase;
 
+// pub use frame_metadata::RuntimeMetadataPrefixed::decode as decode_metadata;
+/// This method is purely for convenience
+pub fn decode_metadata(mut bytes: &[u8]) -> Result<frame_metadata::RuntimeMetadataPrefixed, parity_scale_codec::Error> {
+    frame_metadata::RuntimeMetadataPrefixed::decode(&mut bytes)
+}
+
 pub fn decode_events(
     metadata: &frame_metadata::RuntimeMetadataPrefixed,
     scale_encoded_data: &[u8],
@@ -197,8 +203,7 @@ mod tests {
             .unwrap();
 
         let metadata = client.query_metadata(Some(&block_hash[..])).await.unwrap();
-        let meta =
-            frame_metadata::RuntimeMetadataPrefixed::decode(&mut metadata.as_slice()).unwrap();
+        let meta = decode_metadata(metadata.as_slice()).unwrap();
         assert!(matches!(meta.1, RuntimeMetadata::V14(_)));
 
         // let events_key = "26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7";
