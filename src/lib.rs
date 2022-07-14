@@ -9,7 +9,9 @@ use types_that_should_be_defined_somewhere_else::Phase;
 
 // pub use frame_metadata::RuntimeMetadataPrefixed::decode as decode_metadata;
 /// This method is purely for convenience
-pub fn decode_metadata(mut bytes: &[u8]) -> Result<frame_metadata::RuntimeMetadataPrefixed, parity_scale_codec::Error> {
+pub fn decode_metadata(
+    mut bytes: &[u8],
+) -> Result<frame_metadata::RuntimeMetadataPrefixed, parity_scale_codec::Error> {
     frame_metadata::RuntimeMetadataPrefixed::decode(&mut bytes)
 }
 
@@ -20,9 +22,12 @@ pub fn decode_events(
     if let RuntimeMetadata::V14(metadata) = &metadata.1 {
         let mut event_type = None;
         for r in metadata.types.types() {
-            if r.ty().path().segments() == &["polkadot_runtime", "Event"] {
-                event_type = Some(r);
-                break;
+            let segs = r.ty().path().segments();
+            if segs.len() == 2 {
+                if segs[1] == "Event" && segs[0].ends_with("_runtime") {
+                    event_type = Some(r);
+                    break;
+                }
             }
         }
         let event_type = event_type.unwrap();
@@ -216,7 +221,7 @@ mod tests {
         println!("number! {} {}", block_number, extrinsics.len());
         for (i, ex) in extrinsics.iter().enumerate() {
             let res = decode_extrinsic(&meta, &ex[..]);
-            println!("just finished decoding {} res was {:?}", i, res.is_ok());
+            println!("just finished decoding {} res was {:?}", i, res);
         }
         // let val = extrinsics(meta, &block_json).unwrap();
         // println!("{:#?}", val);
@@ -252,5 +257,37 @@ mod tests {
 
         let _val = decode_events(&meta, &as_of_events[..]).unwrap();
         // println!("{:#?}", val);
+    }
+
+    #[test]
+    fn can_decode_events_parachain() {
+        async_std::task::block_on(test_events_parachain());
+    }
+
+    async fn test_events_parachain() {
+        let block_hash =
+            hex::decode("d1e7a108ef94795226a826678ca80222eb379825bdab84bc9e00ac6bc7e4acd4")
+                .unwrap();
+
+        let client = polkapipe::ws::Backend::new_ws2("wss://karura-rpc-2.aca-api.network:443/ws")
+            .await
+            .unwrap();
+        let metadata = client.query_metadata(Some(&block_hash[..])).await.unwrap();
+        let meta =
+            frame_metadata::RuntimeMetadataPrefixed::decode(&mut metadata.as_slice()).unwrap();
+        assert!(matches!(meta.1, RuntimeMetadata::V14(_)));
+
+        let events_key = "26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7";
+        let key = hex::decode(events_key).unwrap();
+
+        let as_of_events = client
+            .query_storage(&key[..], Some(&block_hash))
+            .await
+            .unwrap();
+        assert!(as_of_events.len() > 0);
+        println!("{:?}", as_of_events);
+
+        let val = decode_events(&meta, &as_of_events[..]).unwrap();
+        println!("{:#?}", val.len());
     }
 }
