@@ -5,7 +5,8 @@ mod types_that_should_be_defined_somewhere_else;
 // use scale_info::PortableType;
 use parity_scale_codec::Compact;
 use parity_scale_codec::Decode;
-use types_that_should_be_defined_somewhere_else::Phase;
+pub use types_that_should_be_defined_somewhere_else::Phase;
+ use scale_value::scale::DecodeError;
 
 // pub use frame_metadata::RuntimeMetadataPrefixed::decode as decode_metadata;
 /// This method is purely for convenience
@@ -30,22 +31,23 @@ pub fn decode_events(
                 }
             }
         }
-        let event_type = event_type.unwrap();
-        let cursor = &mut &*scale_encoded_data;
-        let mut num_events = <Compact<u32>>::decode(cursor).unwrap_or(Compact(0)).0;
+        if let Some(event_type) = event_type {
+            let cursor = &mut &*scale_encoded_data;
+            let mut num_events = <Compact<u32>>::decode(cursor).unwrap_or(Compact(0)).0;
 
-        let mut results = Vec::with_capacity(num_events as usize);
-        while num_events > 0 {
-            let phase = Phase::decode(cursor).unwrap();
-            let new_value =
-                scale_value::scale::decode_as_type(cursor, event_type.id(), &metadata.types)
-                    .unwrap();
-            num_events -= 1;
-            results.push((phase, new_value.remove_context()));
-            let _topics = Vec::<[u8; 32]>::decode(cursor).unwrap(); //TODO don't hardcode hash size
-        }
+            let mut results = Vec::with_capacity(num_events as usize);
+            while num_events > 0 {
+                let phase = Phase::decode(cursor).unwrap();
+                let new_value =
+                    scale_value::scale::decode_as_type(cursor, event_type.id(), &metadata.types)
+                        .unwrap();
+                num_events -= 1;
+                results.push((phase, new_value.remove_context()));
+                let _topics = Vec::<[u8; 32]>::decode(cursor).unwrap(); //TODO don't hardcode hash size
+            }
 
-        Ok(results)
+            Ok(results)
+        } else { Err(())}
     } else {
         Err(())
     }
@@ -81,14 +83,20 @@ pub fn convert_json_block_response(
 pub fn decode_extrinsic(
     meta: &frame_metadata::RuntimeMetadataPrefixed,
     mut scale_encoded_data: &[u8],
-) -> Result<Value<()>, ()> {
+) -> Result<Value<scale_value::scale::TypeId>, DecodeError> {
     if let RuntimeMetadata::V14(metadata) = &meta.1 {
         let mut extrinsic_type = None;
         for r in metadata.types.types() {
-            if r.ty().path().segments() == &["polkadot_runtime", "Call"] {
-                extrinsic_type = Some(r);
-                break;
+             let segs = r.ty().path().segments();
+            if segs.len() == 2 {
+                if segs[1] == "Call" && segs[0].ends_with("_runtime") {
+                    extrinsic_type = Some(r);
+                    break;
+                }
             }
+        }
+        if extrinsic_type.is_none() {
+            return Err(DecodeError::TypeIdNotFound(7777));
         }
 
         let _size = <Compact<u32>>::decode(&mut scale_encoded_data)
@@ -107,7 +115,7 @@ pub fn decode_extrinsic(
             //     is_signed,
             //     hex::encode(scale_encoded_data)
             // );
-            return Err(());
+            return Err(DecodeError::Eof);
         }
 
         // If the extrinsic is signed, decode the signature next.
@@ -124,15 +132,13 @@ pub fn decode_extrinsic(
 
         // let cursor = &mut &*scale_encoded_data;
 
-        let new_value = scale_value::scale::decode_as_type(
+        scale_value::scale::decode_as_type(
             &mut &*scale_encoded_data,
             extrinsic_type.unwrap().id(),
             &metadata.types,
         )
-        .unwrap();
-        Ok(new_value.remove_context())
     } else {
-        Err(())
+        Err(DecodeError::Eof)
     }
 }
 
