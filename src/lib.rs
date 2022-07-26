@@ -199,6 +199,9 @@ mod tests {
     use frame_metadata::RuntimeMetadata;
     use parity_scale_codec::Decode;
     use polkapipe::Backend;
+    use wasm_bindgen_test::*;
+
+    #[wasm_bindgen_test]
     #[test]
     fn can_decode_extrinsics() {
         async_std::task::block_on(test_extrinsics());

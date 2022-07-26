@@ -8,15 +8,28 @@ description = "dynamically decode substrate according to metadata. no network de
 [dependencies]
 parity-scale-codec = { version = "3.1.5", default-features = false, features = [] }
 scale-info = { version= "*", default-features = false, features = []  }
-scale-value = { version = "0.2", default-features = false }
-frame-metadata = { version="15.0", default-features = false, features = ["v14"] }
+scale-value = {  git="https://github.com/gilescope/scale-value.git", branch="wasm32", default-features = false, features = [] }
+# scale-value = { path="/home/gilescope/git/scale-value", default-features = false, features = [] }
+
+# frame-metadata = { version="15.0", default-features = false, features = ["v14"] }
+frame-metadata = { git="https://github.com/integritee-network/frame-metadata.git",  default-features = false, features = ["v14", "full_derive"] }
+
 serde_json = { version="1.0", optional = true }
 hex = { version = "0.4", optional = true }
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["wasm-bindgen", "js"] }
+wasm-bindgen = "*"
+scale-value = {  git="https://github.com/gilescope/scale-value.git", branch="wasm32", default-features = false, features = ["32bit_target"] }
+# scale-value = { path="/home/gilescope/git/scale-value", default-features = false, features = ["32bit_target"] }
+
+
 [dev-dependencies]
-polkapipe = { git="https://github.com/gilescope/polkapipe.git", features=["wss"] }
+polkapipe = { git="https://github.com/gilescope/polkapipe.git", branch="wasm32", default-features=false, features=["http-web"] }
 async-std = "*"
 hex = "0.4"
+
+wasm-bindgen-test = "0.3.0"
 
 [features]
 default = ["json"]
