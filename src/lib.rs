@@ -80,6 +80,36 @@ pub fn convert_json_block_response(
     Err(())
 }
 
+pub fn decode_xcm(
+        meta: &frame_metadata::RuntimeMetadataPrefixed,
+    scale_encoded_data: &[u8]
+) -> Result<Value<scale_value::scale::TypeId>, DecodeError> {
+    if let RuntimeMetadata::V14(metadata) = &meta.1 {
+        let mut extrinsic_type = None;
+        for r in metadata.types.types() {
+             let segs = r.ty().path().segments();
+            if segs.len() == 2 {
+                if segs[1] == "Call" && segs[0].ends_with("_runtime") {
+                    extrinsic_type = Some(r);
+                    break;
+                }
+            }
+        }
+        if extrinsic_type.is_none() {
+            return Err(DecodeError::TypeIdNotFound(7777));
+        }
+
+        potluck_decode(meta, scale_encoded_data);
+        return Err(DecodeError::TypeIdNotFound(7777));
+        // scale_value::scale::decode_as_type(
+        //     &mut &*scale_encoded_data,
+        //     extrinsic_type.unwrap().id(),
+        //     &metadata.types,
+        // )
+    } else {  Err(DecodeError::Eof)
+     }
+}
+
 pub fn decode_extrinsic(
     meta: &frame_metadata::RuntimeMetadataPrefixed,
     mut scale_encoded_data: &[u8],
