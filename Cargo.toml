@@ -23,12 +23,10 @@ wasm-bindgen = "*"
 scale-value = {  git="https://github.com/gilescope/scale-value.git", branch="wasm32", default-features = false, features = ["32bit_target"] }
 # scale-value = { path="/home/gilescope/git/scale-value", default-features = false, features = ["32bit_target"] }
 
-
 [dev-dependencies]
 polkapipe = { git="https://github.com/gilescope/polkapipe.git", branch="wasm32", default-features=false, features=["http-web"] }
 async-std = "*"
 hex = "0.4"
-
 wasm-bindgen-test = "0.3.0"
 
 [features]

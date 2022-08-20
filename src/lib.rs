@@ -5,8 +5,8 @@ mod types_that_should_be_defined_somewhere_else;
 // use scale_info::PortableType;
 use parity_scale_codec::Compact;
 use parity_scale_codec::Decode;
+use scale_value::scale::DecodeError;
 pub use types_that_should_be_defined_somewhere_else::Phase;
- use scale_value::scale::DecodeError;
 
 // pub use frame_metadata::RuntimeMetadataPrefixed::decode as decode_metadata;
 /// This method is purely for convenience
@@ -47,7 +47,9 @@ pub fn decode_events(
             }
 
             Ok(results)
-        } else { Err(())}
+        } else {
+            Err(())
+        }
     } else {
         Err(())
     }
@@ -81,15 +83,15 @@ pub fn convert_json_block_response(
 }
 
 pub fn decode_xcm(
-        meta: &frame_metadata::RuntimeMetadataPrefixed,
-    scale_encoded_data: &[u8]
+    meta: &frame_metadata::RuntimeMetadataPrefixed,
+    scale_encoded_data: &[u8],
 ) -> Result<Value<scale_value::scale::TypeId>, DecodeError> {
     if let RuntimeMetadata::V14(metadata) = &meta.1 {
         let mut extrinsic_type = None;
         for r in metadata.types.types() {
-             let segs = r.ty().path().segments();
+            let segs = r.ty().path().segments();
             if segs.len() == 2 {
-                if segs[1] == "Call" && segs[0].ends_with("_runtime") {
+                if segs[1] == "VersionedXcm" && segs[0] == "xcm" {
                     extrinsic_type = Some(r);
                     break;
                 }
@@ -99,15 +101,14 @@ pub fn decode_xcm(
             return Err(DecodeError::TypeIdNotFound(7777));
         }
 
-        potluck_decode(meta, scale_encoded_data);
-        return Err(DecodeError::TypeIdNotFound(7777));
-        // scale_value::scale::decode_as_type(
-        //     &mut &*scale_encoded_data,
-        //     extrinsic_type.unwrap().id(),
-        //     &metadata.types,
-        // )
-    } else {  Err(DecodeError::Eof)
-     }
+        scale_value::scale::decode_as_type(
+            &mut &*scale_encoded_data,
+            extrinsic_type.unwrap().id(),
+            &metadata.types,
+        )
+    } else {
+        Err(DecodeError::Eof)
+    }
 }
 
 pub fn decode_extrinsic(
@@ -117,7 +118,7 @@ pub fn decode_extrinsic(
     if let RuntimeMetadata::V14(metadata) = &meta.1 {
         let mut extrinsic_type = None;
         for r in metadata.types.types() {
-             let segs = r.ty().path().segments();
+            let segs = r.ty().path().segments();
             if segs.len() == 2 {
                 if segs[1] == "Call" && segs[0].ends_with("_runtime") {
                     extrinsic_type = Some(r);
@@ -327,6 +328,32 @@ mod tests {
         println!("{:?}", as_of_events);
 
         let val = decode_events(&meta, &as_of_events[..]).unwrap();
+        println!("{:#?}", val.len());
+    }
+
+    #[test]
+    fn can_decode_xcm_msg() {
+        async_std::task::block_on(test_xcm_msg());
+    }
+
+    async fn test_xcm_msg() {
+        let block_hash =
+            hex::decode("d1e7a108ef94795226a826678ca80222eb379825bdab84bc9e00ac6bc7e4acd4")
+                .unwrap();
+
+        let client = polkapipe::ws::Backend::new_ws2("wss://karura-rpc-2.aca-api.network:443/ws")
+            .await
+            .unwrap();
+        let metadata = client.query_metadata(Some(&block_hash[..])).await.unwrap();
+        let meta =
+            frame_metadata::RuntimeMetadataPrefixed::decode(&mut metadata.as_slice()).unwrap();
+        assert!(matches!(meta.1, RuntimeMetadata::V14(_)));
+
+        let msg =
+            hex::decode("02100104000100000700e40b54020a13000100000700e40b5402010300286bee0d010004000101004ea0261f30bf699d3d4061c0ae360476b845089e26f0fee2f797ea83b658f02f")
+                .unwrap();
+
+        let val = decode_xcm(&meta, &msg[..]).unwrap();
         println!("{:#?}", val.len());
     }
 }
