@@ -16,10 +16,10 @@ pub fn decode_metadata(
     frame_metadata::RuntimeMetadataPrefixed::decode(&mut bytes)
 }
 
-pub fn decode_events(
+pub fn decode_events<'scale>(
     metadata: &frame_metadata::RuntimeMetadataPrefixed,
-    scale_encoded_data: &[u8],
-) -> Result<Vec<(Phase, Value<()>)>, ()> {
+    scale_encoded_data: &'scale[u8],
+) -> Result<Vec<(Phase, Value<()>, &'scale[u8])>, ()> {
     if let RuntimeMetadata::V14(metadata) = &metadata.1 {
         let mut event_type = None;
         for r in metadata.types.types() {
@@ -31,18 +31,20 @@ pub fn decode_events(
                 }
             }
         }
-        if let Some(event_type) = event_type {
+        if let Some(event_type) = event_type {            
             let cursor = &mut &*scale_encoded_data;
             let mut num_events = <Compact<u32>>::decode(cursor).unwrap_or(Compact(0)).0;
 
             let mut results = Vec::with_capacity(num_events as usize);
             while num_events > 0 {
+                let cursor_original = cursor.clone();
                 let phase = Phase::decode(cursor).unwrap();
                 let new_value =
                     scale_value::scale::decode_as_type(cursor, event_type.id(), &metadata.types)
                         .unwrap();
                 num_events -= 1;
-                results.push((phase, new_value.remove_context()));
+                // Return slice of the raw event too.
+                results.push((phase, new_value.remove_context(), &cursor_original[..cursor_original.len() - cursor.len()]));
                 let _topics = Vec::<[u8; 32]>::decode(cursor).unwrap(); //TODO don't hardcode hash size
             }
 
