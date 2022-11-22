@@ -281,11 +281,11 @@ mod tests {
 
         let (block_number, extrinsics) = convert_json_block_response(&block_json).unwrap();
 
-        println!("number! {} {}", block_number, extrinsics.len());
+        // println!("number! {} {}", block_number, extrinsics.len());
         assert_eq!(extrinsics.len(), expected_extrinsics);
         for (i, ex) in extrinsics.iter().enumerate() {
             let res = decode_extrinsic(&meta, &ex[..]);
-            println!("just finished decoding {} res was {:?}", i, res);
+            // println!("just finished decoding {} res was {:?}", i, res);
         }
         // let val = extrinsics(meta, &block_json).unwrap();
         // println!("{:#?}", val);
@@ -315,7 +315,7 @@ mod tests {
             .await
             .unwrap();
         assert!(as_of_events.len() > 0);
-        println!("{:?}", as_of_events);
+        // println!("{:?}", as_of_events);
 
         let _val = decode_events(&meta, &as_of_events[..]).unwrap();
         // println!("{:#?}", val);
