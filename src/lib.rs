@@ -25,7 +25,10 @@ pub fn decode_events<'scale>(
         for r in metadata.types.types() {
             let segs = r.ty().path().segments();
             if segs.len() == 2 {
-                if segs[1] == "Event" && segs[0].ends_with("_runtime") {
+                // It got renamed recently:
+                if (segs[1] == "Event" || segs[1] == "RuntimeEvent")
+                    && segs[0].ends_with("_runtime")
+                {
                     event_type = Some(r);
                     break;
                 }
@@ -122,7 +125,9 @@ pub fn decode_extrinsic(
         for r in metadata.types.types() {
             let segs = r.ty().path().segments();
             if segs.len() == 2 {
-                if segs[1] == "Call" && segs[0].ends_with("_runtime") {
+                // it got renamed recently
+                if (segs[1] == "Call" || segs[1] == "RuntimeCall") && segs[0].ends_with("_runtime")
+                {
                     extrinsic_type = Some(r);
                     break;
                 }
@@ -228,26 +233,42 @@ pub fn skip_decode(
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use frame_metadata::RuntimeMetadata;
     use parity_scale_codec::Decode;
     use polkapipe::Backend;
     use wasm_bindgen_test::*;
 
-    #[wasm_bindgen_test]
-    #[test]
-    fn can_decode_extrinsics() {
-        async_std::task::block_on(test_extrinsics());
+    // fn get_karura() -> polkapipe::http::Backend {
+    //     polkapipe::http::Backend::new("https://karura-rpc-2.aca-api.network/")
+    // }
+    fn get_polkadot() -> polkapipe::http::Backend {
+        polkapipe::http::Backend::new("https://rpc.polkadot.io")
     }
 
-    async fn test_extrinsics() {
+    #[wasm_bindgen_test]
+    #[test]
+    fn can_decode_extrinsics1() {
+        async_std::task::block_on(test_extrinsics1(
+            "7b735190150afedb7e3ec930b1aba4fa828764fedf308281bf9666ffde2b62bd",
+            4,
+        ));
+    }
+
+    #[wasm_bindgen_test]
+    #[test]
+    fn can_decode_extrinsics_nov_2022() {
+        async_std::task::block_on(test_extrinsics1(
+            "c4fc11b8c01ab281f444611faceddf7d62a34c0761b58922d98f3a5cfe57dfbc",
+            4,
+        ));
+    }
+
+    async fn test_extrinsics1(hash: &str, expected_extrinsics: usize) {
         // let hex_block_hash = "e33568bff8e6f30fee6f217a93523a6b29c31c8fe94c076d818b97b97cfd3a16";
-        let hex_block_hash = "7b735190150afedb7e3ec930b1aba4fa828764fedf308281bf9666ffde2b62bd";
+        let hex_block_hash = hash;
         let block_hash = hex::decode(hex_block_hash).unwrap();
 
-        let client = polkapipe::ws::Backend::new_ws2("wss://rpc.polkadot.io")
-            .await
-            .unwrap();
+        let client = get_polkadot();
 
         let metadata = client.query_metadata(Some(&block_hash[..])).await.unwrap();
         let meta = decode_metadata(metadata.as_slice()).unwrap();
@@ -256,11 +277,12 @@ mod tests {
         // let events_key = "26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7";
         // let key = hex::decode(events_key).unwrap();
 
-        let block_json = client.query_block(hex_block_hash).await.unwrap();
+        let block_json = client.query_block(Some(hex_block_hash)).await.unwrap();
 
         let (block_number, extrinsics) = convert_json_block_response(&block_json).unwrap();
 
         println!("number! {} {}", block_number, extrinsics.len());
+        assert_eq!(extrinsics.len(), expected_extrinsics);
         for (i, ex) in extrinsics.iter().enumerate() {
             let res = decode_extrinsic(&meta, &ex[..]);
             println!("just finished decoding {} res was {:?}", i, res);
@@ -270,18 +292,16 @@ mod tests {
     }
 
     #[test]
-    fn can_decode_events() {
-        async_std::task::block_on(test_events());
+    fn can_decode_events1() {
+        async_std::task::block_on(test_events1());
     }
 
-    async fn test_events() {
+    async fn test_events1() {
         let block_hash =
             hex::decode("e33568bff8e6f30fee6f217a93523a6b29c31c8fe94c076d818b97b97cfd3a16")
                 .unwrap();
 
-        let client = polkapipe::ws::Backend::new_ws2("wss://rpc.polkadot.io")
-            .await
-            .unwrap();
+        let client = get_polkadot();
         let metadata = client.query_metadata(Some(&block_hash[..])).await.unwrap();
         let meta =
             frame_metadata::RuntimeMetadataPrefixed::decode(&mut metadata.as_slice()).unwrap();
@@ -301,61 +321,57 @@ mod tests {
         // println!("{:#?}", val);
     }
 
-    #[test]
-    fn can_decode_events_parachain() {
-        async_std::task::block_on(test_events_parachain());
-    }
+    // #[test]
+    // fn can_decode_events_parachain() {
+    //     async_std::task::block_on(test_events_parachain());
+    // }
 
-    async fn test_events_parachain() {
-        let block_hash =
-            hex::decode("d1e7a108ef94795226a826678ca80222eb379825bdab84bc9e00ac6bc7e4acd4")
-                .unwrap();
+    // async fn test_events_parachain() {
+    //     let block_hash =
+    //         hex::decode("d1e7a108ef94795226a826678ca80222eb379825bdab84bc9e00ac6bc7e4acd4")
+    //             .unwrap();
 
-        let client = polkapipe::ws::Backend::new_ws2("wss://karura-rpc-2.aca-api.network:443/ws")
-            .await
-            .unwrap();
-        let metadata = client.query_metadata(Some(&block_hash[..])).await.unwrap();
-        let meta =
-            frame_metadata::RuntimeMetadataPrefixed::decode(&mut metadata.as_slice()).unwrap();
-        assert!(matches!(meta.1, RuntimeMetadata::V14(_)));
+    //     let client = get_karura();
+    //     let metadata = client.query_metadata(Some(&block_hash[..])).await.unwrap();
+    //     let meta =
+    //         frame_metadata::RuntimeMetadataPrefixed::decode(&mut metadata.as_slice()).unwrap();
+    //     assert!(matches!(meta.1, RuntimeMetadata::V14(_)));
 
-        let events_key = "26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7";
-        let key = hex::decode(events_key).unwrap();
+    //     let events_key = "26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7";
+    //     let key = hex::decode(events_key).unwrap();
 
-        let as_of_events = client
-            .query_storage(&key[..], Some(&block_hash))
-            .await
-            .unwrap();
-        assert!(as_of_events.len() > 0);
-        println!("{:?}", as_of_events);
+    //     let as_of_events = client
+    //         .query_storage(&key[..], Some(&block_hash))
+    //         .await
+    //         .unwrap();
+    //     assert!(as_of_events.len() > 0);
+    //     println!("{:?}", as_of_events);
 
-        let val = decode_events(&meta, &as_of_events[..]).unwrap();
-        println!("{:#?}", val.len());
-    }
+    //     let val = decode_events(&meta, &as_of_events[..]).unwrap();
+    //     println!("{:#?}", val.len());
+    // }
 
-    #[test]
-    fn can_decode_xcm_msg() {
-        async_std::task::block_on(test_xcm_msg());
-    }
+    // #[test]
+    // fn can_decode_xcm_msg() {
+    //     async_std::task::block_on(test_xcm_msg());
+    // }
 
-    async fn test_xcm_msg() {
-        let block_hash =
-            hex::decode("d1e7a108ef94795226a826678ca80222eb379825bdab84bc9e00ac6bc7e4acd4")
-                .unwrap();
+    // async fn test_xcm_msg() {
+    //     let block_hash =
+    //         hex::decode("d1e7a108ef94795226a826678ca80222eb379825bdab84bc9e00ac6bc7e4acd4")
+    //             .unwrap();
+    //     let client = get_karura();
 
-        let client = polkapipe::ws::Backend::new_ws2("wss://karura-rpc-2.aca-api.network:443/ws")
-            .await
-            .unwrap();
-        let metadata = client.query_metadata(Some(&block_hash[..])).await.unwrap();
-        let meta =
-            frame_metadata::RuntimeMetadataPrefixed::decode(&mut metadata.as_slice()).unwrap();
-        assert!(matches!(meta.1, RuntimeMetadata::V14(_)));
+    //     let metadata = client.query_metadata(Some(&block_hash[..])).await.unwrap();
+    //     let meta =
+    //         frame_metadata::RuntimeMetadataPrefixed::decode(&mut metadata.as_slice()).unwrap();
+    //     assert!(matches!(meta.1, RuntimeMetadata::V14(_)));
 
-        let msg =
-            hex::decode("02100104000100000700e40b54020a13000100000700e40b5402010300286bee0d010004000101004ea0261f30bf699d3d4061c0ae360476b845089e26f0fee2f797ea83b658f02f")
-                .unwrap();
+    //     let msg =
+    //         hex::decode("02100104000100000700e40b54020a13000100000700e40b5402010300286bee0d010004000101004ea0261f30bf699d3d4061c0ae360476b845089e26f0fee2f797ea83b658f02f")
+    //             .unwrap();
 
-        let val = decode_xcm(&meta, &msg[..]).unwrap();
-        println!("{:#?}", val.len());
-    }
+    //     let _val = decode_xcm(&meta, &msg[..]).unwrap();
+    //     // println!("{:#?}", val.len());
+    // }
 }
