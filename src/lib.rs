@@ -1,3 +1,4 @@
+#![feature(assert_matches)]
 use frame_metadata::RuntimeMetadata;
 // use scale_info::PortableRegistry;
 use scale_value::Value;
@@ -18,8 +19,8 @@ pub fn decode_metadata(
 
 pub fn decode_events<'scale>(
     metadata: &frame_metadata::RuntimeMetadataPrefixed,
-    scale_encoded_data: &'scale[u8],
-) -> Result<Vec<(Phase, Value<()>, &'scale[u8])>, ()> {
+    scale_encoded_data: &'scale [u8],
+) -> Result<Vec<(Phase, Value<()>, &'scale [u8])>, ()> {
     if let RuntimeMetadata::V14(metadata) = &metadata.1 {
         let mut event_type = None;
         for r in metadata.types.types() {
@@ -34,7 +35,7 @@ pub fn decode_events<'scale>(
                 }
             }
         }
-        if let Some(event_type) = event_type {            
+        if let Some(event_type) = event_type {
             let cursor = &mut &*scale_encoded_data;
             let mut num_events = <Compact<u32>>::decode(cursor).unwrap_or(Compact(0)).0;
 
@@ -47,7 +48,11 @@ pub fn decode_events<'scale>(
                         .unwrap();
                 num_events -= 1;
                 // Return slice of the raw event too.
-                results.push((phase, new_value.remove_context(), &cursor_original[..cursor_original.len() - cursor.len()]));
+                results.push((
+                    phase,
+                    new_value.remove_context(),
+                    &cursor_original[..cursor_original.len() - cursor.len()],
+                ));
                 let _topics = Vec::<[u8; 32]>::decode(cursor).unwrap(); //TODO don't hardcode hash size
             }
 
@@ -118,7 +123,20 @@ pub fn decode_xcm(
 
 pub fn decode_extrinsic(
     meta: &frame_metadata::RuntimeMetadataPrefixed,
+    scale_encoded_data: &[u8],
+) -> Result<Value<scale_value::scale::TypeId>, DecodeError> {
+    let decoded = decode_extrinsic1(meta, scale_encoded_data, true);
+    if decoded.is_err() {
+        decode_extrinsic1(meta, scale_encoded_data, false)
+    } else {
+        decoded
+    }
+}
+
+pub fn decode_extrinsic1(
+    meta: &frame_metadata::RuntimeMetadataPrefixed,
     mut scale_encoded_data: &[u8],
+    include_tip: bool,
 ) -> Result<Value<scale_value::scale::TypeId>, DecodeError> {
     if let RuntimeMetadata::V14(metadata) = &meta.1 {
         let mut extrinsic_type = None;
@@ -140,6 +158,7 @@ pub fn decode_extrinsic(
         let _size = <Compact<u32>>::decode(&mut scale_encoded_data)
             .unwrap_or(Compact(0))
             .0;
+        // println!("size {_size}");
 
         let is_signed = scale_encoded_data[0] & 0b1000_0000 != 0;
         let version = scale_encoded_data[0] & 0b0111_1111;
@@ -155,7 +174,7 @@ pub fn decode_extrinsic(
             // );
             return Err(DecodeError::Eof);
         }
-
+        // println!("is signed {}", is_signed);
         // If the extrinsic is signed, decode the signature next.
         let _signature: Option<()> = match is_signed {
             true => {
@@ -163,12 +182,17 @@ pub fn decode_extrinsic(
                 let _address = <[u8; 32]>::decode(&mut scale_encoded_data); // TODO assumed 32 len. Can we figure out this from the metadata?
                 let _sig = <[u8; 65 + 1]>::decode(&mut scale_encoded_data); // 1 byte for the discriminant.
                 let _additional_and_extra_params = <[u8; 4]>::decode(&mut scale_encoded_data);
+                if include_tip {
+                    //TODO need a more efficient way!
+                    let _tip = Compact::<u32>::decode(&mut scale_encoded_data);
+                }
                 Some(())
             }
             false => None,
         };
 
         // let cursor = &mut &*scale_encoded_data;
+        // println!("decode as type {}", hex::encode(&scale_encoded_data[..]));
 
         scale_value::scale::decode_as_type(
             &mut &*scale_encoded_data,
@@ -236,6 +260,7 @@ mod tests {
     use frame_metadata::RuntimeMetadata;
     use parity_scale_codec::Decode;
     use polkapipe::Backend;
+    use std::assert_matches::assert_matches;
     use wasm_bindgen_test::*;
 
     // fn get_karura() -> polkapipe::http::Backend {
@@ -256,12 +281,23 @@ mod tests {
 
     #[wasm_bindgen_test]
     #[test]
+    fn can_decode_extrinsics42() {
+        async_std::task::block_on(test_extrinsics1(
+            "fd78e72b41f720ed62dac8f690d504e33f7437edcef7a2a6ed6e98134c163598",
+            3,
+        ));
+    }
+
+    #[wasm_bindgen_test]
+    #[test]
     fn can_decode_extrinsics_nov_2022() {
         async_std::task::block_on(test_extrinsics1(
             "c4fc11b8c01ab281f444611faceddf7d62a34c0761b58922d98f3a5cfe57dfbc",
             4,
         ));
     }
+
+    //TODO add burnin - try and decode everything!
 
     async fn test_extrinsics1(hash: &str, expected_extrinsics: usize) {
         // let hex_block_hash = "e33568bff8e6f30fee6f217a93523a6b29c31c8fe94c076d818b97b97cfd3a16";
@@ -279,12 +315,14 @@ mod tests {
 
         let block_json = client.query_block(Some(hex_block_hash)).await.unwrap();
 
-        let (block_number, extrinsics) = convert_json_block_response(&block_json).unwrap();
+        let (_block_number, extrinsics) = convert_json_block_response(&block_json).unwrap();
 
-        // println!("number! {} {}", block_number, extrinsics.len());
+        // println!("number! {} {}", _block_number, extrinsics.len());
         assert_eq!(extrinsics.len(), expected_extrinsics);
-        for (i, ex) in extrinsics.iter().enumerate() {
+        for (_i, ex) in extrinsics.iter().enumerate() {
+            // println!("extrinsic #{_i}");
             let res = decode_extrinsic(&meta, &ex[..]);
+            assert_matches!(res, Ok(_), "bytes {:?}", hex::encode(&ex[..]));
             // println!("just finished decoding {} res was {:?}", i, res);
         }
         // let val = extrinsics(meta, &block_json).unwrap();
