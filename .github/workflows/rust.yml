@@ -20,7 +20,7 @@ jobs:
     - if: ${{ matrix.os == 'ubuntu-latest' }}
       run: sudo apt-get install libxcb-shape0-dev libxcb-xfixes0-dev
     - name: Run tests
-      run: cargo test --release --verbose --features smoldot-std,http,wss,ws
+      run: cargo test --release --verbose
   browser:
     runs-on: ubuntu-latest
     steps:
@@ -31,5 +31,3 @@ jobs:
       run: rustup target add wasm32-unknown-unknown
     - name: check wasm
       run: cargo check --verbose --target wasm32-unknown-unknown
-    - name: check normal
-      run: cargo test
