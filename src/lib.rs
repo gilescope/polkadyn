@@ -40,10 +40,10 @@ pub fn decode_events<'scale>(
             let mut results = Vec::with_capacity(num_events as usize);
             while num_events > 0 {
                 let cursor_original = <&[u8]>::clone(cursor);
-                let phase = Phase::decode(cursor).unwrap();
+                let phase = Phase::decode(cursor).map_err(|_|())?;
                 let new_value =
                     scale_value::scale::decode_as_type(cursor, event_type.id(), &metadata.types)
-                        .unwrap();
+                        .map_err(|_|())?;
                 num_events -= 1;
                 // Return slice of the raw event too.
                 results.push((
@@ -51,7 +51,7 @@ pub fn decode_events<'scale>(
                     new_value.remove_context(),
                     &cursor_original[..cursor_original.len() - cursor.len()],
                 ));
-                let _topics = Vec::<[u8; 32]>::decode(cursor).unwrap(); //TODO don't hardcode hash size
+                let _topics = Vec::<[u8; 32]>::decode(cursor).map_err(|_|())?; //TODO don't hardcode hash size
             }
 
             Ok(results)
@@ -73,13 +73,13 @@ pub fn convert_json_block_response(
         if let Some(serde_json::value::Value::Object(m)) = map.get("header") {
             if let Some(serde_json::value::Value::String(num_original)) = m.get("number") {
                 block_number =
-                    u32::from_str_radix(num_original.trim_start_matches("0x"), 16).unwrap();
+                    u32::from_str_radix(num_original.trim_start_matches("0x"), 16).map_err(|_|())?;
             }
         }
         if let Some(serde_json::value::Value::Array(exs)) = map.get("extrinsics") {
             for ex in exs {
                 if let serde_json::value::Value::String(val) = ex {
-                    extrinsics.push(hex::decode(val.trim_start_matches("0x")).unwrap());
+                    extrinsics.push(hex::decode(val.trim_start_matches("0x")).map_err(|_|())?);
                 } else {
                     panic!()
                 }
@@ -202,12 +202,12 @@ pub fn decode_extrinsic(
                         sig_ext.ty.id(),
                         &metadata.types,
                     )
-                    .unwrap();
+                    ?;
                     // let _val = scale_value::scale::decode_as_type(
                     //     &mut scale_encoded_data,
                     //     sig_ext.additional_signed.id(),
                     //     &metadata.types,
-                    // ).unwrap();
+                    // )?;
                     // println!("res= {:?}", _val);
                 }
                 Some(())
