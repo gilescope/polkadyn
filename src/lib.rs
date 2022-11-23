@@ -5,7 +5,7 @@ use parity_scale_codec::Compact;
 use parity_scale_codec::Decode;
 use scale_value::scale::DecodeError;
 use scale_value::Value;
-pub use types_that_should_be_defined_somewhere_else::{Era, Phase};
+pub use types_that_should_be_defined_somewhere_else::Phase;
 
 // pub use frame_metadata::RuntimeMetadataPrefixed::decode as decode_metadata;
 /// This method is purely for convenience
@@ -39,7 +39,7 @@ pub fn decode_events<'scale>(
 
             let mut results = Vec::with_capacity(num_events as usize);
             while num_events > 0 {
-                let cursor_original = cursor.clone();
+                let cursor_original = <&[u8]>::clone(cursor);
                 let phase = Phase::decode(cursor).unwrap();
                 let new_value =
                     scale_value::scale::decode_as_type(cursor, event_type.id(), &metadata.types)
@@ -98,11 +98,9 @@ pub fn decode_xcm(
         let mut extrinsic_type = None;
         for r in metadata.types.types() {
             let segs = r.ty().path().segments();
-            if segs.len() == 2 {
-                if segs[1] == "VersionedXcm" && segs[0] == "xcm" {
-                    extrinsic_type = Some(r);
-                    break;
-                }
+            if segs.len() == 2 && segs[1] == "VersionedXcm" && segs[0] == "xcm" {
+                extrinsic_type = Some(r);
+                break;
             }
         }
         if extrinsic_type.is_none() {
@@ -177,35 +175,40 @@ pub fn decode_extrinsic(
                 // );
                 // println!("gobble len {}", scale_encoded_data.len());
 
-                let _era = Era::decode(&mut scale_encoded_data).unwrap();
-                // assert_eq!(_additional_and_extra_params.unwrap()[0], 5);
-                // println!("era {:?}", era);
+                // let _era = Era::decode(&mut scale_encoded_data).unwrap();
+                // // assert_eq!(_additional_and_extra_params.unwrap()[0], 5);
+                // println!("era {:?}", _era);
 
                 // if include_tip {
                 //     //TODO need a more efficient way!
                 //     //                     sp_runtime::generic::Era enum
                 //         //   - compact encoded u32 (nonce; prior transaction count)
                 // println!("noce bits: {}", hex::encode(&scale_encoded_data[0..4]));
-                let _nonce = Compact::<u32>::decode(&mut scale_encoded_data);
+                // let _nonce = Compact::<u32>::decode(&mut scale_encoded_data);
+
                 // println!("nonce {:?}", _nonce);
-                let _tip = Compact::<u128>::decode(&mut scale_encoded_data);
+                // let _tip = Compact::<u128>::decode(&mut scale_encoded_data);
                 // println!("tip {:?}", _tip);
+
+                //let _maybe_enum_sig_determinant = <[u8; 1]>::decode(&mut scale_encoded_data);
 
                 for sig_ext in &metadata.extrinsic.signed_extensions {
                     // println!("sigext {}", sig_ext.identifier);
                     // println!("sigext type {:?}", sig_ext.ty);
                     // println!("sigext additional {:?}", sig_ext.additional_signed);
+                    //  println!("gobble next {}", hex::encode(&scale_encoded_data[..4]));
                     let _val = scale_value::scale::decode_as_type(
-                        &mut &*scale_encoded_data,
+                        &mut scale_encoded_data,
                         sig_ext.ty.id(),
                         &metadata.types,
-                    );
-                    let _val = scale_value::scale::decode_as_type(
-                        &mut &*scale_encoded_data,
-                        sig_ext.additional_signed.id(),
-                        &metadata.types,
-                    );
-                    // println!("res= {:?}", val);
+                    )
+                    .unwrap();
+                    // let _val = scale_value::scale::decode_as_type(
+                    //     &mut scale_encoded_data,
+                    //     sig_ext.additional_signed.id(),
+                    //     &metadata.types,
+                    // ).unwrap();
+                    // println!("res= {:?}", _val);
                 }
                 Some(())
             }
@@ -290,6 +293,9 @@ mod tests {
     fn get_polkadot() -> polkapipe::http::Backend {
         polkapipe::http::Backend::new("https://rpc.polkadot.io")
     }
+    fn get_statemine() -> polkapipe::http::Backend {
+        polkapipe::http::Backend::new("https://statemine-rpc.polkadot.io")
+    }
 
     // fn get_interlay() -> polkapipe::http::Backend {
     //     polkapipe::http::Backend::new("https://api.interlay.io/parachain")
@@ -342,6 +348,14 @@ mod tests {
     // }
     //TODO add burnin - try and decode everything!
 
+    #[wasm_bindgen_test]
+    #[test]
+    fn can_decode_extrinsics_statemine() {
+        async_std::task::block_on(test_extrinsics3(
+            "73e66ea936ee8ecad87dd04f85c25a8491ce4538fe951c52eb08b178c9cd2f6e",
+            3,
+        ));
+    }
     async fn test_extrinsics1(hash: &str, expected_extrinsics: usize) {
         // let hex_block_hash = "e33568bff8e6f30fee6f217a93523a6b29c31c8fe94c076d818b97b97cfd3a16";
         let hex_block_hash = hash;
@@ -401,6 +415,36 @@ mod tests {
     //     // let val = extrinsics(meta, &block_json).unwrap();
     //     // println!("{:#?}", val);
     // }
+
+    async fn test_extrinsics3(hash: &str, expected_extrinsics: usize) {
+        // let hex_block_hash = "e33568bff8e6f30fee6f217a93523a6b29c31c8fe94c076d818b97b97cfd3a16";
+        let hex_block_hash = hash;
+        let block_hash = hex::decode(hex_block_hash).unwrap();
+
+        let client = get_statemine();
+
+        let metadata = client.query_metadata(Some(&block_hash[..])).await.unwrap();
+        let meta = decode_metadata(metadata.as_slice()).unwrap();
+        assert!(matches!(meta.1, RuntimeMetadata::V14(_)));
+
+        // let events_key = "26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7";
+        // let key = hex::decode(events_key).unwrap();
+
+        let block_json = client.query_block(Some(hex_block_hash)).await.unwrap();
+
+        let (_block_number, extrinsics) = convert_json_block_response(&block_json).unwrap();
+
+        // println!("number! {} {}", _block_number, extrinsics.len());
+        assert_eq!(extrinsics.len(), expected_extrinsics);
+        for (_i, ex) in extrinsics.iter().enumerate() {
+            println!("extrinsic #{_i}");
+            let res = decode_extrinsic(&meta, &ex[..]);
+            assert_matches!(res, Ok(_), "bytes {:?}", hex::encode(&ex[..]));
+            // println!("just finished decoding {} res was {:?}", i, res);
+        }
+        // let val = extrinsics(meta, &block_json).unwrap();
+        // println!("{:#?}", val);
+    }
 
     #[test]
     fn can_decode_events1() {
