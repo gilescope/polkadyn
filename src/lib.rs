@@ -21,8 +21,8 @@ pub fn decode_events<'scale>(
 ) -> Result<Vec<(Phase, Value<()>, &'scale [u8])>, ()> {
     if let RuntimeMetadata::V14(metadata) = &metadata.1 {
         let mut event_type = None;
-        for r in metadata.types.types() {
-            let segs = r.ty().path().segments();
+        for r in &metadata.types.types {
+            let segs = &r.ty.path.segments;
             if segs.len() == 2 {
                 // It got renamed recently:
                 if (segs[1] == "Event" || segs[1] == "RuntimeEvent")
@@ -42,7 +42,7 @@ pub fn decode_events<'scale>(
                 let cursor_original = <&[u8]>::clone(cursor);
                 let phase = Phase::decode(cursor).map_err(|_|())?;
                 let new_value =
-                    scale_value::scale::decode_as_type(cursor, event_type.id(), &metadata.types)
+                    scale_value::scale::decode_as_type(cursor, event_type.id, &metadata.types)
                         .map_err(|_|())?;
                 num_events -= 1;
                 // Return slice of the raw event too.
@@ -96,8 +96,8 @@ pub fn decode_xcm(
 ) -> Result<Value<scale_value::scale::TypeId>, DecodeError> {
     if let RuntimeMetadata::V14(metadata) = &meta.1 {
         let mut extrinsic_type = None;
-        for r in metadata.types.types() {
-            let segs = r.ty().path().segments();
+        for r in &metadata.types.types {
+            let segs = &r.ty.path.segments;
             if segs.len() == 2 && segs[1] == "VersionedXcm" && segs[0] == "xcm" {
                 extrinsic_type = Some(r);
                 break;
@@ -109,11 +109,11 @@ pub fn decode_xcm(
 
         scale_value::scale::decode_as_type(
             &mut &*scale_encoded_data,
-            extrinsic_type.unwrap().id(),
+            extrinsic_type.unwrap().id,
             &metadata.types,
         )
     } else {
-        Err(DecodeError::Eof)
+        Err(DecodeError::NotEnoughInput)
     }
 }
 
@@ -123,8 +123,8 @@ pub fn decode_extrinsic(
 ) -> Result<Value<scale_value::scale::TypeId>, DecodeError> {
     if let RuntimeMetadata::V14(metadata) = &meta.1 {
         let mut extrinsic_type = None;
-        for r in metadata.types.types() {
-            let segs = r.ty().path().segments();
+        for r in &metadata.types.types {
+            let segs = &r.ty.path.segments;
             if segs.len() == 2 {
                 // it got renamed recently
                 if (segs[1] == "Call" || segs[1] == "RuntimeCall") && segs[0].ends_with("_runtime")
@@ -155,7 +155,7 @@ pub fn decode_extrinsic(
             //     is_signed,
             //     hex::encode(scale_encoded_data)
             // );
-            return Err(DecodeError::Eof);
+            return Err(DecodeError::NotEnoughInput);
         }
         // println!("is signed {}", is_signed);
         // If the extrinsic is signed, decode the signature next.
@@ -199,7 +199,7 @@ pub fn decode_extrinsic(
                     //  println!("gobble next {}", hex::encode(&scale_encoded_data[..4]));
                     let _val = scale_value::scale::decode_as_type(
                         &mut scale_encoded_data,
-                        sig_ext.ty.id(),
+                        sig_ext.ty.id,
                         &metadata.types,
                     )
                     ?;
@@ -220,11 +220,11 @@ pub fn decode_extrinsic(
 
         scale_value::scale::decode_as_type(
             &mut &*scale_encoded_data,
-            extrinsic_type.unwrap().id(),
+            extrinsic_type.unwrap().id,
             &metadata.types,
         )
     } else {
-        Err(DecodeError::Eof)
+        Err(DecodeError::NotEnoughInput)
     }
 }
 
@@ -234,9 +234,9 @@ pub fn potluck_decode(
 ) {
     let mut clone = scale_encoded_data.clone();
     if let RuntimeMetadata::V14(metadata) = &metadata.1 {
-        for r in metadata.types.types() {
-            if scale_value::scale::decode_as_type(&mut clone, r.id(), &metadata.types).is_ok() {
-                println!("can decode to {:?}", r.ty().path().segments())
+        for r in &metadata.types.types {
+            if scale_value::scale::decode_as_type(&mut clone, r.id, &metadata.types).is_ok() {
+                println!("can decode to {:?}", r.ty.path.segments)
             }
         }
 
@@ -250,11 +250,11 @@ pub fn skip_decode(
     scale_encoded_data: &[u8],
 ) {
     if let RuntimeMetadata::V14(metadata) = &metadata.1 {
-        for r in metadata.types.types() {
-            if r.ty().path().segments() == path {
+        for r in &metadata.types.types {
+            if r.ty.path.segments == path {
                 for i in 0..scale_encoded_data.len() {
                     let mut sub = &scale_encoded_data[i..];
-                    if scale_value::scale::decode_as_type(&mut sub, r.id(), &metadata.types).is_ok()
+                    if scale_value::scale::decode_as_type(&mut sub, r.id, &metadata.types).is_ok()
                     {
                         println!("can decode at {}", i);
                     }
