@@ -1,4 +1,3 @@
-#![feature(assert_matches)]
 use frame_metadata::RuntimeMetadata;
 mod types_that_should_be_defined_somewhere_else;
 use parity_scale_codec::Compact;
@@ -283,7 +282,6 @@ mod tests {
     use frame_metadata::RuntimeMetadata;
     use parity_scale_codec::Decode;
     use polkapipe::Backend;
-    use std::assert_matches::assert_matches;
     use wasm_bindgen_test::*;
 
     // fn get_karura() -> polkapipe::http::Backend {
@@ -378,7 +376,7 @@ mod tests {
         for (_i, ex) in extrinsics.iter().enumerate() {
             println!("extrinsic #{_i}");
             let res = decode_extrinsic(&meta, &ex[..]);
-            assert_matches!(res, Ok(_), "bytes {:?}", hex::encode(&ex[..]));
+            assert!(res.is_ok(), "bytes {:?}", hex::encode(&ex[..]));
             // println!("just finished decoding {} res was {:?}", i, res);
         }
         // let val = extrinsics(meta, &block_json).unwrap();
@@ -438,7 +436,7 @@ mod tests {
         for (_i, ex) in extrinsics.iter().enumerate() {
             println!("extrinsic #{_i}");
             let res = decode_extrinsic(&meta, &ex[..]);
-            assert_matches!(res, Ok(_), "bytes {:?}", hex::encode(&ex[..]));
+            assert!(res.is_ok(), "bytes {:?}", hex::encode(&ex[..]));
             // println!("just finished decoding {} res was {:?}", i, res);
         }
         // let val = extrinsics(meta, &block_json).unwrap();
