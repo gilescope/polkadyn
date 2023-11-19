@@ -230,12 +230,11 @@ pub fn decode_extrinsic(
 
 pub fn potluck_decode(
     metadata: &frame_metadata::RuntimeMetadataPrefixed,
-    scale_encoded_data: &[u8],
+    mut scale_encoded_data: &[u8],
 ) {
-    let mut clone = scale_encoded_data.clone();
     if let RuntimeMetadata::V14(metadata) = &metadata.1 {
         for r in &metadata.types.types {
-            if scale_value::scale::decode_as_type(&mut clone, r.id, &metadata.types).is_ok() {
+            if scale_value::scale::decode_as_type(&mut scale_encoded_data, r.id, &metadata.types).is_ok() {
                 println!("can decode to {:?}", r.ty.path.segments)
             }
         }
