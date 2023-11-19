@@ -7,16 +7,9 @@ description = "dynamically decode substrate according to metadata. no network de
 
 [dependencies]
 parity-scale-codec = { version = "3.2.1", default-features = false, features = [] }
-scale-info = { version= "*", default-features = false, features = []  }
-scale-value = {  git="https://github.com/paritytech/scale-value.git",  default-features = false, features = [] }
-# scale-value = {  git="https://github.com/gilescope/scale-value.git", branch="wasm32", default-features = false, features = [] }
-#scale-value = {  git="https://github.com/gilescope/scale-value.git", branch="wasm32", default-features = false, features = [] }
-
-# scale-value = { path="/home/gilescope/git/scale-value", default-features = false, features = [] }
-
-#frame-metadata = { git="https://github.com/integritee-network/frame-metadata.git",  default-features = false, features = ["v14", "full_derive"] }
-# Needs v16 for no_std support:
-frame-metadata = { git="https://github.com/paritytech/frame-metadata.git", default-features = false, features = ["v14", "decode"] }
+scale-info = { version= "2.10", default-features = false, features = []  }
+scale-value = { version="0.13",  default-features = false, features = [] }
+frame-metadata = { version="16.0", default-features = false, features = ["current", "decode"] }
 
 serde_json = { version="1.0", optional = true }
 hex = { version = "0.4", optional = true }
@@ -24,10 +17,7 @@ hex = { version = "0.4", optional = true }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["wasm-bindgen", "js"] }
 wasm-bindgen = "*"
-
-scale-value = {  git="https://github.com/paritytech/scale-value.git",  default-features = false, features = [] }
-# scale-value = {  git="https://github.com/gilescope/scale-value.git", branch="wasm32", default-features = false, features = ["32bit_target"] }
-# scale-value = { path="/home/gilescope/git/scale-value", default-features = false, features = ["32bit_target"] }
+scale-value = {   version="0.13", default-features = false, features = [] }
 
 [dev-dependencies]
 polkapipe = { git="https://github.com/gilescope/polkapipe.git", default-features=false, features=["http"], rev="1ae0bd84c187ec619f5bc216455f7498dc8e2307" }
@@ -40,7 +30,3 @@ wasm-bindgen-test = "0.3.0"
 [features]
 default = ["json"]
 json = ["serde_json", "hex"]
-
-# Till v16 published
-[patch.crates-io]
-"frame-metadata"={ git="https://github.com/paritytech/frame-metadata.git" }

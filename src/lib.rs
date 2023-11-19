@@ -1,4 +1,3 @@
-#![feature(assert_matches)]
 use frame_metadata::RuntimeMetadata;
 mod types_that_should_be_defined_somewhere_else;
 use parity_scale_codec::Compact;
@@ -230,12 +229,11 @@ pub fn decode_extrinsic(
 
 pub fn potluck_decode(
     metadata: &frame_metadata::RuntimeMetadataPrefixed,
-    scale_encoded_data: &[u8],
+    mut scale_encoded_data: &[u8],
 ) {
-    let mut clone = scale_encoded_data.clone();
     if let RuntimeMetadata::V14(metadata) = &metadata.1 {
         for r in &metadata.types.types {
-            if scale_value::scale::decode_as_type(&mut clone, r.id, &metadata.types).is_ok() {
+            if scale_value::scale::decode_as_type(&mut scale_encoded_data, r.id, &metadata.types).is_ok() {
                 println!("can decode to {:?}", r.ty.path.segments)
             }
         }
@@ -284,7 +282,6 @@ mod tests {
     use frame_metadata::RuntimeMetadata;
     use parity_scale_codec::Decode;
     use polkapipe::Backend;
-    use std::assert_matches::assert_matches;
     use wasm_bindgen_test::*;
 
     // fn get_karura() -> polkapipe::http::Backend {
@@ -379,7 +376,7 @@ mod tests {
         for (_i, ex) in extrinsics.iter().enumerate() {
             println!("extrinsic #{_i}");
             let res = decode_extrinsic(&meta, &ex[..]);
-            assert_matches!(res, Ok(_), "bytes {:?}", hex::encode(&ex[..]));
+            assert!(res.is_ok(), "bytes {:?}", hex::encode(&ex[..]));
             // println!("just finished decoding {} res was {:?}", i, res);
         }
         // let val = extrinsics(meta, &block_json).unwrap();
@@ -439,7 +436,7 @@ mod tests {
         for (_i, ex) in extrinsics.iter().enumerate() {
             println!("extrinsic #{_i}");
             let res = decode_extrinsic(&meta, &ex[..]);
-            assert_matches!(res, Ok(_), "bytes {:?}", hex::encode(&ex[..]));
+            assert!(res.is_ok(), "bytes {:?}", hex::encode(&ex[..]));
             // println!("just finished decoding {} res was {:?}", i, res);
         }
         // let val = extrinsics(meta, &block_json).unwrap();
